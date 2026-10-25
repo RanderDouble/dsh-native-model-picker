@@ -427,6 +427,41 @@ ok("隐藏成员从收藏视图移除", homeView().querySelectorAll(".dsh-nmp-op
 	await sleep30();
 }
 
+// ---------- 目录未就绪时不清空收藏 ----------
+{
+	const savedPins = win.localStorage.getItem("dsh-nmp-pins-v1");
+	const testPins = JSON.stringify({ sources: ["渠道A"], models: ["渠道B::Kimi-K2.6 · 免费"], hidden: [] });
+	const dir = host.dirs.get("sess-1");
+	win.localStorage.setItem("dsh-nmp-pins-v1", testPins);
+	// 刷新后首次装载：目录 store 还是加载前的空快照
+	dir.store.set({ current: null, routable: false, groups: [], failures: [{ id: "chan-a", error: "x" }], status: "idle", pending: null, error: null });
+	await sleep30();
+	pins = JSON.parse(win.localStorage.getItem("dsh-nmp-pins-v1"));
+	ok("加载前的空目录快照不清空收藏", pins.sources.join(",") === "渠道A" && pins.models.join(",") === "渠道B::Kimi-K2.6 · 免费");
+	// 就绪但全部渠道故障的 ready 空快照同样不清空
+	dir.store.set({ current: null, routable: false, groups: [], failures: [{ id: "chan-a", error: "x" }], status: "ready", pending: null, error: null });
+	await sleep30();
+	pins = JSON.parse(win.localStorage.getItem("dsh-nmp-pins-v1"));
+	ok("全部渠道故障的 ready 空快照不清空收藏", pins.sources.join(",") === "渠道A" && pins.models.join(",") === "渠道B::Kimi-K2.6 · 免费");
+	dir.sync();
+	await sleep30();
+	pins = JSON.parse(win.localStorage.getItem("dsh-nmp-pins-v1"));
+	ok("目录恢复后收藏原样保留", pins.sources.join(",") === "渠道A" && pins.models.join(",") === "渠道B::Kimi-K2.6 · 免费");
+	// 目录里有渠道存在时，消失渠道的清理照常执行
+	host.groups = [{ id: "chan-a", name: "渠道A", models: SPEC[0].models }];
+	dir.sync();
+	await sleep30();
+	pins = JSON.parse(win.localStorage.getItem("dsh-nmp-pins-v1"));
+	ok("部分目录到达时仍清理消失渠道的收藏", pins.sources.join(",") === "渠道A" && pins.models.length === 0);
+	host.groups = SPEC;
+	dir.sync();
+	await sleep30();
+	win.localStorage.setItem("dsh-nmp-pins-v1", savedPins);
+	input.value = "";
+	input.dispatchEvent(new win.Event("input", { bubbles: true }));
+	await sleep30();
+}
+
 // ---------- 收藏视图渠道顺序 ----------
 {
 	const savedPins = win.localStorage.getItem("dsh-nmp-pins-v1");
