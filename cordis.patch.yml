@@ -1,0 +1,4 @@
+# dsh-native-model-picker：注册进插件花名册（bundle 层合并）。
+- insert:
+    - id: dsh-native-model-picker
+      name: dsh-native-model-picker
