@@ -238,6 +238,7 @@ await afterTrigger();
 ok("原生按钮点击被接管（按钮自身监听未触发）", nativeClicks === 0);
 let main = doc.querySelector(".dsh-nmp-main:not(.dsh-nmp-anchored)");
 ok("点击后打开主卡", !!main && main.getAttribute("data-open") === "true");
+ok("主卡高度上限与侧卡同款（min(可用高, 视口一半)）", main.style.maxHeight === Math.max(120, Math.min(win.innerHeight - 88, Math.round(win.innerHeight * 0.5))) + "px");
 await sleep30();
 ok("目录未收藏时一级视图给空态提示", !!main.querySelector(".dsh-nmp-empty"));
 
