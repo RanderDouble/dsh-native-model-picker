@@ -642,7 +642,7 @@ ok("卡片之外按下指针整体收起", main.getAttribute("data-open") === "f
 	await dirD.select({ provider: "chan-d", model: "eac-flash" });
 	await sleep30();
 	const btnD = () => doc.querySelector(".dsh-nmp-effort-btn");
-	ok("四档模型当前档显示中位词", btnD().textContent === "高");
+	ok("四档模型当前档显示中位词", btnD().textContent === "炼虚");
 	btnD().click();
 	await sleep30();
 	const trackD = doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort-track");
@@ -657,7 +657,7 @@ ok("卡片之外按下指针整体收起", main.getAttribute("data-open") === "f
 		await sleep30();
 		ladder.push(btnD().textContent);
 	}
-	ok("档位按强度取名且逐档升格", ladder.join(",") === "最低,高,超凡");
+	ok("档位按强度取名且逐档升格", ladder.join(",") === "炼气,炼虚,飞升");
 	ok("最高档标识落在真正的末档", doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort").hasAttribute("data-apex"));
 
 	// 设置面板：入口在 footer
@@ -667,7 +667,8 @@ ok("卡片之外按下指针整体收起", main.getAttribute("data-open") === "f
 	await sleep30();
 	const panel = () => doc.querySelector(".dsh-nmp-names");
 	ok("点击入口打开取名面板", !!panel());
-	ok("面板列出两套预设", Array.from(panel().querySelectorAll(".dsh-nmp-names-preset")).map((b) => b.textContent).join(",") === "普通,修仙境界");
+	ok("面板列出三套词表来源", Array.from(panel().querySelectorAll(".dsh-nmp-names-preset")).map((b) => b.textContent).join(",") === "修仙境界,普通,自己填");
+	ok("默认停在修仙境界", panel().querySelector('[data-preset="xianxia"]').hasAttribute("data-on"));
 	ok("面板按当前模型档表逐档列出", panel().querySelectorAll("[data-override]").length === 4);
 	ok("关闭档固定为关闭且不可改名", (() => {
 		const el = panel().querySelector('[data-override="disabled"]');
@@ -675,12 +676,29 @@ ok("卡片之外按下指针整体收起", main.getAttribute("data-open") === "f
 	})());
 	ok("覆盖输入以渠道原名作提示", panel().querySelector('[data-override="@0"]').placeholder === "Low" && panel().querySelector('[data-override="@2"]').placeholder === "Max");
 
-	panel().querySelector('[data-preset="xianxia"]').click();
+	panel().querySelector('[data-preset="plain"]').click();
 	await sleep30();
-	ok("切到修仙预设后按钮用境界名", btnD().textContent === "飞升");
+	ok("切到普通预设后末档用最强档词", (() => {
+		const t = doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort-track");
+		t.dispatchEvent(new win.KeyboardEvent("keydown", { key: "End", bubbles: true }));
+		return true;
+	})());
+	await sleep30();
+	ok("普通预设的档名均为两个字", btnD().textContent === "超凡");
+	ok("普通预设逐档词均为两个字", (() => {
+		const t = doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort-track");
+		const seen = [];
+		t.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Home", bubbles: true }));
+		seen.push(btnD().textContent);
+		for (let i = 0; i < 3; i++) {
+			t.dispatchEvent(new win.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+			seen.push(btnD().textContent);
+		}
+		return seen.every((w) => w.length === 2);
+	})());
 	doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort-track").dispatchEvent(new win.KeyboardEvent("keydown", { key: "Home", bubbles: true }));
 	await sleep30();
-	ok("修仙预设下关闭档仍叫关闭", btnD().textContent === "关闭");
+	ok("普通预设下关闭档仍叫关闭", btnD().textContent === "关闭");
 
 	const overrideInput = doc.querySelector('.dsh-nmp-names [data-override="@0"]');
 	ok("切换预设后菜单仍开着", !!overrideInput);
@@ -691,22 +709,42 @@ ok("卡片之外按下指针整体收起", main.getAttribute("data-open") === "f
 	track3.dispatchEvent(new win.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
 	await sleep30();
 	ok("手动改名优先于预设词表", btnD().textContent === "炼气巅峰");
-	win.localStorage.removeItem("dsh-nmp-effort-names-v1");
+	ok("自己填的词表覆盖预设", (() => {
+		panel().querySelector('[data-preset="custom"]').click();
+		return true;
+	})());
+	await sleep30();
+	ok("切到自己填后出现词表输入框", !!panel().querySelector("[data-words]"));
+	doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort-track").dispatchEvent(new win.KeyboardEvent("keydown", { key: "Home", bubbles: true }));
+	await sleep30();
+	ok("关闭档在自己填词表下仍叫关闭", btnD().textContent === "关闭");
+	const wordsBox = panel().querySelector("[data-words]");
+	wordsBox.value = "筑基期\n金丹期\n元婴期";
+	wordsBox.dispatchEvent(new win.Event("change", { bubbles: true }));
+	await sleep30();
+	ok("自己填的词表立即生效", (() => {
+		const t = doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort-track");
+		t.dispatchEvent(new win.KeyboardEvent("keydown", { key: "End", bubbles: true }));
+		return true;
+	})());
+	await sleep30();
+	ok("自己填的词表末档取末词", btnD().textContent === "元婴期");
+	ok("自己填的词表已存盘", JSON.parse(win.localStorage.getItem("dsh-nmp-effort-names-v2") || "{}").preset === "custom");
 
-	ok("面板里的重置恢复普通预设", (() => {
+	ok("面板里的重置恢复修仙预设", (() => {
 		const reset = Array.from(doc.querySelectorAll(".dsh-nmp-names-btn")).find((b) => b.textContent === "重置全部");
 		reset.click();
 		return true;
 	})());
 	await sleep30();
-	ok("重置后词表回到普通预设", (() => {
+	ok("重置后词表回到默认来源", (() => {
 		const track4 = doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort-track");
 		track4.dispatchEvent(new win.KeyboardEvent("keydown", { key: "End", bubbles: true }));
 		return true;
 	})());
 	await sleep30();
-	ok("重置后末档取普通词表最强档", btnD().textContent === "超凡");
-	ok("重置后面板停在原地供继续调整", !!doc.querySelector(".dsh-nmp-names") && doc.querySelector('.dsh-nmp-names [data-preset="plain"]').hasAttribute("data-on"));
+	ok("重置后末档取修仙词表最强档", btnD().textContent === "飞升");
+	ok("重置后面板停在原地供继续调整", !!doc.querySelector(".dsh-nmp-names") && doc.querySelector('.dsh-nmp-names [data-preset="xianxia"]').hasAttribute("data-on"));
 	Array.from(doc.querySelectorAll(".dsh-nmp-names-btn")).find((b) => b.textContent === "完成").click();
 	await sleep30();
 	ok("完成按钮收起面板", !doc.querySelector(".dsh-nmp-names"));
@@ -718,7 +756,7 @@ ok("卡片之外按下指针整体收起", main.getAttribute("data-open") === "f
 	ok("再点入口收起面板", !doc.querySelector(".dsh-nmp-names"));
 	doc.querySelector(".dsh-nmp-cfg").click();
 	await sleep30();
-	win.localStorage.removeItem("dsh-nmp-effort-names-v1");
+	win.localStorage.removeItem("dsh-nmp-effort-names-v2");
 	host.groups.pop();
 	await host.dirs.get("sess-1").select({ provider: "chan-a", model: "beta" });
 	await sleep30();
