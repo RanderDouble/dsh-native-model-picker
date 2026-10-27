@@ -73,6 +73,11 @@ function makeHost(spec, initialSelection) {
 			return Promise.resolve({ ok: true, value: { selected: next } });
 		},
 	};
+	// 目录内新增渠道：索引与快照同时更新，模拟宿主目录重新加载后的新结果
+	host.addGroup = (group) => {
+		group.models.forEach((m) => index.set(group.id + "/" + m.id, { group, model: m }));
+		host.groups.push(group);
+	};
 	function makeDirectory(sessionId) {
 		const store = makeStore({ current: null, routable: null, groups: [], failures: [], status: "idle", pending: null, error: null });
 		const dir = {
@@ -623,11 +628,108 @@ ok("卡片之外按下指针整体收起", main.getAttribute("data-open") === "f
 	await sleep30();
 }
 
+// ---------- 档位统一取名 ----------
+{
+	// 目录里加一个声明了 disabled 的渠道：关闭档必须排最左，不能落到最强档
+	host.addGroup({
+		id: "chan-d",
+		name: "渠道D",
+		models: [
+			{ id: "eac-flash", name: "EAC-Flash", reasoning: { efforts: [{ id: "disabled", name: "Off" }, { id: "low", name: "Low" }, { id: "high", name: "高" }, { id: "max", name: "Max" }], defaultEffort: "high" } },
+		],
+	});
+	const dirD = host.dirs.get("sess-1");
+	await dirD.select({ provider: "chan-d", model: "eac-flash" });
+	await sleep30();
+	const btnD = () => doc.querySelector(".dsh-nmp-effort-btn");
+	ok("四档模型当前档显示中位词", btnD().textContent === "高");
+	btnD().click();
+	await sleep30();
+	const trackD = doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort-track");
+	ok("四档模型的滑块范围与当前值", trackD.getAttribute("aria-valuemax") === "3" && trackD.getAttribute("aria-valuenow") === "2");
+	trackD.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Home", bubbles: true }));
+	await sleep30();
+	ok("声明 disabled 的档表里关闭档排最左", btnD().textContent === "关闭");
+	ok("关闭档不带末档标记", doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort").getAttribute("data-apex") === null);
+	const ladder = [];
+	for (let i = 0; i < 3; i++) {
+		trackD.dispatchEvent(new win.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+		await sleep30();
+		ladder.push(btnD().textContent);
+	}
+	ok("档位按强度取名且逐档升格", ladder.join(",") === "最低,高,超凡");
+	ok("最高档标识落在真正的末档", doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort").hasAttribute("data-apex"));
+
+	// 设置面板：入口在 footer
+	const cfgBtn = doc.querySelector(".dsh-nmp-footer .dsh-nmp-cfg");
+	ok("footer 提供档位取名入口", !!cfgBtn && cfgBtn.getAttribute("data-nmp-entry") === "effort-names");
+	cfgBtn.click();
+	await sleep30();
+	const panel = () => doc.querySelector(".dsh-nmp-names");
+	ok("点击入口打开取名面板", !!panel());
+	ok("面板列出两套预设", Array.from(panel().querySelectorAll(".dsh-nmp-names-preset")).map((b) => b.textContent).join(",") === "普通,修仙境界");
+	ok("面板按当前模型档表逐档列出", panel().querySelectorAll("[data-override]").length === 4);
+	ok("关闭档固定为关闭且不可改名", (() => {
+		const el = panel().querySelector('[data-override="disabled"]');
+		return !!el && el.value === "关闭" && el.disabled === true;
+	})());
+	ok("覆盖输入以渠道原名作提示", panel().querySelector('[data-override="@0"]').placeholder === "Low" && panel().querySelector('[data-override="@2"]').placeholder === "Max");
+
+	panel().querySelector('[data-preset="xianxia"]').click();
+	await sleep30();
+	ok("切到修仙预设后按钮用境界名", btnD().textContent === "飞升");
+	doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort-track").dispatchEvent(new win.KeyboardEvent("keydown", { key: "Home", bubbles: true }));
+	await sleep30();
+	ok("修仙预设下关闭档仍叫关闭", btnD().textContent === "关闭");
+
+	const overrideInput = doc.querySelector('.dsh-nmp-names [data-override="@0"]');
+	ok("切换预设后菜单仍开着", !!overrideInput);
+	overrideInput.value = "炼气巅峰";
+	overrideInput.dispatchEvent(new win.Event("change", { bubbles: true }));
+	await sleep30();
+	const track3 = doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort-track");
+	track3.dispatchEvent(new win.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+	await sleep30();
+	ok("手动改名优先于预设词表", btnD().textContent === "炼气巅峰");
+	win.localStorage.removeItem("dsh-nmp-effort-names-v1");
+
+	ok("面板里的重置恢复普通预设", (() => {
+		const reset = Array.from(doc.querySelectorAll(".dsh-nmp-names-btn")).find((b) => b.textContent === "重置全部");
+		reset.click();
+		return true;
+	})());
+	await sleep30();
+	ok("重置后词表回到普通预设", (() => {
+		const track4 = doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort-track");
+		track4.dispatchEvent(new win.KeyboardEvent("keydown", { key: "End", bubbles: true }));
+		return true;
+	})());
+	await sleep30();
+	ok("重置后末档取普通词表最强档", btnD().textContent === "超凡");
+	ok("重置后面板停在原地供继续调整", !!doc.querySelector(".dsh-nmp-names") && doc.querySelector('.dsh-nmp-names [data-preset="plain"]').hasAttribute("data-on"));
+	Array.from(doc.querySelectorAll(".dsh-nmp-names-btn")).find((b) => b.textContent === "完成").click();
+	await sleep30();
+	ok("完成按钮收起面板", !doc.querySelector(".dsh-nmp-names"));
+	doc.querySelector(".dsh-nmp-cfg").click();
+	await sleep30();
+	ok("入口可再次打开面板", !!doc.querySelector(".dsh-nmp-names"));
+	doc.querySelector(".dsh-nmp-cfg").click();
+	await sleep30();
+	ok("再点入口收起面板", !doc.querySelector(".dsh-nmp-names"));
+	doc.querySelector(".dsh-nmp-cfg").click();
+	await sleep30();
+	win.localStorage.removeItem("dsh-nmp-effort-names-v1");
+	host.groups.pop();
+	await host.dirs.get("sess-1").select({ provider: "chan-a", model: "beta" });
+	await sleep30();
+}
+
 // ---------- dispose 交还原生接管 ----------
 const subBeforeDispose = host.dirs.get("sess-1").store.subscriberCount();
 host.dispose();
 ok("dispose 移除样式", !doc.getElementById("dsh-nmp-style"));
 ok("dispose 移除主卡与侧卡", !doc.querySelector(".dsh-nmp-main"));
+ok("dispose 移除取名面板", !doc.querySelector(".dsh-nmp-names"));
 native.click();
 await sleep30();
 ok("dispose 后原生按钮恢复自身点击", nativeClicks === 1);
