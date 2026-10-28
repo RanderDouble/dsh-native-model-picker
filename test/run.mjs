@@ -660,13 +660,43 @@ ok("卡片之外按下指针整体收起", main.getAttribute("data-open") === "f
 	ok("档位按强度取名且逐档升格", ladder.join(",") === "炼气,炼虚,飞升");
 	ok("最高档标识落在真正的末档", doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort").hasAttribute("data-apex"));
 
-	// 设置面板：入口在 footer
-	const cfgBtn = doc.querySelector(".dsh-nmp-footer .dsh-nmp-cfg");
-	ok("footer 提供档位取名入口", !!cfgBtn && cfgBtn.getAttribute("data-nmp-entry") === "effort-names");
-	cfgBtn.click();
-	await sleep30();
-	const panel = () => doc.querySelector(".dsh-nmp-names");
-	ok("点击入口打开取名面板", !!panel());
+	// 取名视图挂在推理等级弹层里：入口是弹层标题行最右的齿轮
+	const gear = () => doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort-gear");
+	const popEl = () => doc.querySelector(".dsh-nmp-effort-pop");
+	const panel = () => doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-names");
+	const trackP = () => doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort-track");
+	const popOpen = () => !!popEl() && popEl().getAttribute("data-open") === "true";
+	const viewNow = () => (popEl() ? popEl().getAttribute("data-view") : null);
+	const openSlider = async () => {
+		if (!popOpen()) btnD().click();
+		await sleep30();
+		if (viewNow() !== "slider") {
+			const back = panel().querySelector(".dsh-nmp-names-back");
+			back.click();
+			await sleep30();
+		}
+	};
+	const openNames = async () => {
+		await openSlider();
+		if (viewNow() !== "names") gear().click();
+		await sleep30();
+	};
+	const stepKey = async (key) => {
+		await openSlider();
+		trackP().dispatchEvent(new win.KeyboardEvent("keydown", { key: key, bubbles: true }));
+		await sleep30();
+	};
+	ok("取名入口在弹层标题行", !!gear() && gear().getAttribute("data-nmp-entry") === "effort-names");
+	ok("取名入口与档名同在一行", gear().parentElement.classList.contains("dsh-nmp-effort-head"));
+	ok("footer 不再提供取名齿轮", !doc.querySelector(".dsh-nmp-footer .dsh-nmp-cfg"));
+	ok("弹层默认是滑块视图", viewNow() === "slider");
+	ok("取名视图默认收起在卡片里", !!panel() && win.getComputedStyle(panel()).display === "none");
+	ok("样式表按视图切换两块内容", /\.dsh-nmp-effort-pop\[data-view="names"\] \.dsh-nmp-effort\{display:none;\}/.test(styleEl.textContent) && /\.dsh-nmp-effort-pop\[data-view="names"\] \.dsh-nmp-names\{display:flex;\}/.test(styleEl.textContent));
+	await openNames();
+	ok("点齿轮后在弹层里换出取名视图", viewNow() === "names" && !!panel());
+	ok("取名与滑块共用同一张卡片", panel().parentElement === popEl());
+	ok("取名视图不再另起浮层", !doc.querySelector("body > .dsh-nmp-names"));
+	ok("取名视图左上角有返回箭头", !!panel().querySelector(".dsh-nmp-names-back"));
 	ok("面板列出三套词表来源", Array.from(panel().querySelectorAll(".dsh-nmp-names-preset")).map((b) => b.textContent).join(",") === "修仙境界,普通,自己填");
 	ok("默认停在修仙境界", panel().querySelector('[data-preset="xianxia"]').hasAttribute("data-on"));
 	ok("面板按当前模型档表逐档列出", panel().querySelectorAll("[data-override]").length === 4);
@@ -675,18 +705,37 @@ ok("卡片之外按下指针整体收起", main.getAttribute("data-open") === "f
 		return !!el && el.value === "关闭" && el.disabled === true;
 	})());
 	ok("覆盖输入以渠道原名作提示", panel().querySelector('[data-override="@0"]').placeholder === "Low" && panel().querySelector('[data-override="@2"]').placeholder === "Max");
-
+	
+	// 编辑原地更新：输入框节点与焦点都保留
+	const overrideInput = panel().querySelector('[data-override="@2"]');
+	overrideInput.focus();
+	overrideInput.value = "炼气巅峰";
+	overrideInput.dispatchEvent(new win.Event("change", { bubbles: true }));
+	await sleep30();
+	ok("改名后输入框仍是同一个节点", panel().querySelector('[data-override="@2"]') === overrideInput);
+	ok("改名后编辑焦点不丢", doc.activeElement === overrideInput);
+	ok("改名后弹层仍在取名视图", viewNow() === "names");
+	await stepKey("End");
+	ok("手动改名优先于预设词表", btnD().textContent === "炼气巅峰");
+	
+	// 清掉手动值，后续断言看预设词表本身
+	await openNames();
+	const clearOne = panel().querySelector('[data-override="@2"]');
+	clearOne.value = "";
+	clearOne.dispatchEvent(new win.Event("change", { bubbles: true }));
+	await sleep30();
+	await openNames();
+	panel().querySelector('.dsh-nmp-names-back').click();
+	await sleep30();
+	ok("返回箭头换回滑块视图", viewNow() === "slider" && popOpen());
+	await openNames();
 	panel().querySelector('[data-preset="plain"]').click();
 	await sleep30();
-	ok("切到普通预设后末档用最强档词", (() => {
-		const t = doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort-track");
-		t.dispatchEvent(new win.KeyboardEvent("keydown", { key: "End", bubbles: true }));
-		return true;
-	})());
-	await sleep30();
-	ok("普通预设的档名均为两个字", btnD().textContent === "超凡");
+	ok("切到普通预设后仍停在取名视图", panel().querySelector('[data-preset="plain"]').hasAttribute("data-on"));
+	await stepKey("End");
+	ok("普通预设末档用两字最强档词", btnD().textContent === "超凡");
 	ok("普通预设逐档词均为两个字", (() => {
-		const t = doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort-track");
+		const t = trackP();
 		const seen = [];
 		t.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Home", bubbles: true }));
 		seen.push(btnD().textContent);
@@ -696,66 +745,37 @@ ok("卡片之外按下指针整体收起", main.getAttribute("data-open") === "f
 		}
 		return seen.every((w) => w.length === 2);
 	})());
-	doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort-track").dispatchEvent(new win.KeyboardEvent("keydown", { key: "Home", bubbles: true }));
-	await sleep30();
-	ok("普通预设下关闭档仍叫关闭", btnD().textContent === "关闭");
-
-	const overrideInput = doc.querySelector('.dsh-nmp-names [data-override="@0"]');
-	ok("切换预设后菜单仍开着", !!overrideInput);
-	overrideInput.value = "炼气巅峰";
-	overrideInput.dispatchEvent(new win.Event("change", { bubbles: true }));
-	await sleep30();
-	const track3 = doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort-track");
-	track3.dispatchEvent(new win.KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
-	await sleep30();
-	ok("手动改名优先于预设词表", btnD().textContent === "炼气巅峰");
-	ok("自己填的词表覆盖预设", (() => {
-		panel().querySelector('[data-preset="custom"]').click();
-		return true;
-	})());
+	await openNames();
+	panel().querySelector('[data-preset="custom"]').click();
 	await sleep30();
 	ok("切到自己填后出现词表输入框", !!panel().querySelector("[data-words]"));
-	doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort-track").dispatchEvent(new win.KeyboardEvent("keydown", { key: "Home", bubbles: true }));
-	await sleep30();
-	ok("关闭档在自己填词表下仍叫关闭", btnD().textContent === "关闭");
 	const wordsBox = panel().querySelector("[data-words]");
 	wordsBox.value = "筑基期\n金丹期\n元婴期";
 	wordsBox.dispatchEvent(new win.Event("change", { bubbles: true }));
 	await sleep30();
-	ok("自己填的词表立即生效", (() => {
-		const t = doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort-track");
-		t.dispatchEvent(new win.KeyboardEvent("keydown", { key: "End", bubbles: true }));
-		return true;
-	})());
-	await sleep30();
+	ok("自己填后输入框仍是同一个节点", panel().querySelector("[data-words]") === wordsBox);
+	await stepKey("End");
 	ok("自己填的词表末档取末词", btnD().textContent === "元婴期");
 	ok("自己填的词表已存盘", JSON.parse(win.localStorage.getItem("dsh-nmp-effort-names-v2") || "{}").preset === "custom");
-
-	ok("面板里的重置恢复修仙预设", (() => {
-		const reset = Array.from(doc.querySelectorAll(".dsh-nmp-names-btn")).find((b) => b.textContent === "重置全部");
-		reset.click();
-		return true;
-	})());
+	
+	await openNames();
+	Array.from(doc.querySelectorAll(".dsh-nmp-names-btn")).find((b) => b.textContent === "重置全部").click();
 	await sleep30();
-	ok("重置后词表回到默认来源", (() => {
-		const track4 = doc.querySelector(".dsh-nmp-effort-pop .dsh-nmp-effort-track");
-		track4.dispatchEvent(new win.KeyboardEvent("keydown", { key: "End", bubbles: true }));
-		return true;
-	})());
-	await sleep30();
+	ok("重置后弹层停在取名视图", viewNow() === "names" && panel().querySelector('[data-preset="xianxia"]').hasAttribute("data-on"));
+	await stepKey("End");
 	ok("重置后末档取修仙词表最强档", btnD().textContent === "飞升");
-	ok("重置后面板停在原地供继续调整", !!doc.querySelector(".dsh-nmp-names") && doc.querySelector('.dsh-nmp-names [data-preset="xianxia"]').hasAttribute("data-on"));
-	Array.from(doc.querySelectorAll(".dsh-nmp-names-btn")).find((b) => b.textContent === "完成").click();
+	await openNames();
+	panel().querySelectorAll(".dsh-nmp-names-btn")[1].click();
 	await sleep30();
-	ok("完成按钮收起面板", !doc.querySelector(".dsh-nmp-names"));
-	doc.querySelector(".dsh-nmp-cfg").click();
+	ok("完成按钮收起整个弹层", !popOpen());
+	ok("收起后视图复位成滑块", viewNow() === "slider");
+	await openNames();
+	popEl().dispatchEvent(new win.MouseEvent("mouseleave", { bubbles: false }));
+	await sleep(200);
+	ok("取名视图里指针移出不收起", popOpen());
+	doc.dispatchEvent(new win.KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
 	await sleep30();
-	ok("入口可再次打开面板", !!doc.querySelector(".dsh-nmp-names"));
-	doc.querySelector(".dsh-nmp-cfg").click();
-	await sleep30();
-	ok("再点入口收起面板", !doc.querySelector(".dsh-nmp-names"));
-	doc.querySelector(".dsh-nmp-cfg").click();
-	await sleep30();
+	ok("取名视图里 Escape 收起整个弹层", !popOpen());
 	win.localStorage.removeItem("dsh-nmp-effort-names-v2");
 	host.groups.pop();
 	await host.dirs.get("sess-1").select({ provider: "chan-a", model: "beta" });
@@ -767,13 +787,13 @@ const subBeforeDispose = host.dirs.get("sess-1").store.subscriberCount();
 host.dispose();
 ok("dispose 移除样式", !doc.getElementById("dsh-nmp-style"));
 ok("dispose 移除主卡与侧卡", !doc.querySelector(".dsh-nmp-main"));
-ok("dispose 移除取名面板", !doc.querySelector(".dsh-nmp-names"));
+ok("dispose 移除取名视图", !doc.querySelector(".dsh-nmp-names"));
 native.click();
 await sleep30();
 ok("dispose 后原生按钮恢复自身点击", nativeClicks === 1);
 host.groups = SPEC;
 host.dirs.get("sess-1").sync();
-await sleep30;
+await sleep30();
 ok("dispose 后松开会话目录订阅", host.dirs.get("sess-1").store.subscriberCount() === subBeforeDispose - 1);
 ok("dispose 后 store 变化不再建卡", doc.querySelector(".dsh-nmp-main") === null);
 
