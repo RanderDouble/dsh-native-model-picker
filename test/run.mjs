@@ -258,6 +258,8 @@ ok("当前模型名复刻品牌拼接节点", !!entry.querySelector(".dsh-nmp-ef
 	ok("触发按钮品牌段带已定位祖先", /.dsh-nmp-trigger-brand\{[^}]*position:relative/.test(styleEl.textContent));
 	ok("触发按钮品牌段按主题行内结构承接型号名", !!triggerBrand() && !!triggerBrand().querySelector(":scope > .dsh-claude-model-name .dsh-claude-model-combine svg"));
 	ok("品牌段里的型号名走行内排版", /\.dsh-nmp-trigger-brand \.dsh-claude-model-name\{display:inline/.test(styleEl.textContent));
+	ok("品牌图标相对文字上提半像素", /\.dsh-nmp-trigger-brand \.dsh-claude-model-combine\{position:relative;top:-0\.5px/.test(styleEl.textContent));
+	ok("页面只保留一份插件实例", typeof win.__nmpInstance === "function");
 
 // ---------- 推理等级入口 ----------
 const effBtn = doc.querySelector(".dsh-nmp-effort-btn");
@@ -690,7 +692,7 @@ ok("卡片之外按下指针整体收起", main.getAttribute("data-open") === "f
 	ok("footer 不再提供取名齿轮", !doc.querySelector(".dsh-nmp-footer .dsh-nmp-cfg"));
 	ok("取名浮层默认不在场", !panel());
 	ok("取名不再是弹层内部的第二视图", !/\.dsh-nmp-effort-pop\[data-view=/.test(styleEl.textContent));
-	ok("取名浮层固定宽度 296px", /\.dsh-nmp-names\{[^}]*width:296px/.test(styleEl.textContent));
+	ok("取名浮层与推理等级弹层同宽", /\.dsh-nmp-names\{[^}]*width:264px/.test(styleEl.textContent) && /\.dsh-nmp-effort-pop\{[^}]*width:264px/.test(styleEl.textContent));
 	await openSlider();
 	gear().dispatchEvent(new win.MouseEvent("mouseenter", { bubbles: false }));
 	await sleep(220);
@@ -713,9 +715,18 @@ ok("卡片之外按下指针整体收起", main.getAttribute("data-open") === "f
 		chip.getBoundingClientRect = rect;
 		win.dispatchEvent(new win.Event("resize"));
 		await sleep30();
-		const left = Math.round(Math.min(1085 - 296, win.innerWidth - 296 - 8));
+		const left = Math.round(Math.min(1085 - 264, win.innerWidth - 264 - 8));
 		const top = Math.max(8, win.innerHeight - 240 - 8);
 		ok("视口变化后浮层重新贴到按钮上方", panel().style.left === left + "px" && panel().style.top === top + "px" && panel().style.top !== before);
+		// 主题重建整行时等级按钮会短暂脱离文档，此时读到的 rect 全为 0
+		const keptLeft = panel().style.left;
+		const keptTop = panel().style.top;
+		const parent = chip.parentElement;
+		chip.remove();
+		doc.dispatchEvent(new win.Event("scroll", { bubbles: true }));
+		await sleep30();
+		ok("锚点脱离文档时浮层留在原位", panel().style.left === keptLeft && panel().style.top === keptTop);
+		parent.appendChild(chip);
 		delete chip.getBoundingClientRect;
 	}
 	ok("面板按当前模型档表逐档列出", panel().querySelectorAll("[data-override]").length === 4);
@@ -725,7 +736,7 @@ ok("卡片之外按下指针整体收起", main.getAttribute("data-open") === "f
 	})());
 	ok("档位行左边是服务商给的档名", Array.from(panel().querySelectorAll(".dsh-nmp-names-label")).map((el) => el.textContent).join(",") === "Off,Low,高,Max");
 	ok("输入框留空时以当前词作提示", panel().querySelector('[data-override="@0"]').value === "" && panel().querySelector('[data-override="@0"]').placeholder === "炼气" && panel().querySelector('[data-override="@2"]').placeholder === "飞升");
-	ok("词表输入框有足够的输入高度", /\.dsh-nmp-names-words\{[^}]*min-height:112px/.test(styleEl.textContent));
+	ok("词表输入框有足够的输入高度", /\.dsh-nmp-names-words\{[^}]*min-height:160px/.test(styleEl.textContent) && /\.dsh-nmp-names-words\{[^}]*max-height:300px/.test(styleEl.textContent));
 	ok("浮层高度上限放宽到 560px", /\.dsh-nmp-names\{[^}]*max-height:min\(560px/.test(styleEl.textContent));
 	
 	// 编辑原地更新：输入框节点与焦点都保留
