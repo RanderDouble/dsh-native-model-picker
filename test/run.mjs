@@ -190,16 +190,19 @@ function bootDOM(host) {
 	// 触发按钮：真机两枚同 aria-label 的按钮（原生按钮与主题克隆按钮）
 	const native = doc.createElement("button");
 	native.setAttribute("aria-label", "选择模型，当前 GLM-5.3-Flash，推理等级 高");
+	// en 界面下的同款按钮：锚点只认 aria-label 前缀，语言变体必须同样命中
+	const nativeEn = doc.createElement("button");
+	nativeEn.setAttribute("aria-label", "Select model, current GLM-5.3-Flash, reasoning effort High");
 	const wrap = doc.createElement("div");
 	wrap.className = "_7KE1Ra_root";
 	wrap.appendChild(native);
 	doc.body.appendChild(wrap);
-	return { dom, win, doc, native, get exported() { return exported; } };
+	return { dom, win, doc, native, nativeEn, get exported() { return exported; } };
 }
 
 const host = makeHost(SPEC, { provider: "chan-a", model: "glm-5-3-flash" });
 const env = bootDOM(host);
-const { doc, win, native } = env;
+const { doc, win, native, nativeEn } = env;
 
 // 主题文案目录与品牌资产：走宿主预置口
 win.__nmpDescCatalog = {
@@ -259,6 +262,8 @@ ok("当前模型名复刻品牌拼接节点", !!entry.querySelector(".dsh-nmp-ef
 	ok("触发按钮品牌段按主题行内结构承接型号名", !!triggerBrand() && !!triggerBrand().querySelector(":scope > .dsh-claude-model-name .dsh-claude-model-combine svg"));
 	ok("品牌段里的型号名走行内排版", /\.dsh-nmp-trigger-brand \.dsh-claude-model-name\{display:inline/.test(styleEl.textContent));
 	ok("品牌图标相对文字上提半像素", /\.dsh-nmp-trigger-brand \.dsh-claude-model-combine\{position:relative;top:-0\.5px/.test(styleEl.textContent));
+	// en 界面的触发按钮（aria-label 形态 "Select model, current …"）同样被语义锚点命中
+	ok("en locale 触发按钮同样命中锚点", nativeEn.matches('button[aria-label*="选择模型"],button[aria-label*="Select model"]'));
 	ok("页面只保留一份插件实例", typeof win.__nmpInstance === "function");
 
 // ---------- 推理等级入口 ----------
