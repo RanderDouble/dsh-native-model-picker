@@ -1,16 +1,21 @@
 {
   "name": "dsh-native-model-picker",
   "version": "0.1.0",
+  "icon": "icon.svg",
+  "packageManager": "pnpm@11.7.0",
   "description": "脱离 claude 主题的三级模型选择器：数据源为宿主 modelDirectories 服务，一级收藏首页、二级渠道列表、三级渠道内模型。| Standalone three-level model picker driven by the host modelDirectories service.",
   "type": "module",
-  "main": "./lib/index.js",
+  "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",
     "./client": "./lib/client.js",
+    "./locale/*.json": "./locale/*.json",
     "./package.json": "./package.json"
   },
   "files": [
-    "lib/*.js",
+    "lib",
+    "locale",
+    "icon.svg",
     "cordis.patch.yml",
     "README.md"
   ],
@@ -31,7 +36,7 @@
     }
   },
   "engines": {
-    "node": ">=18",
+    "node": "^22.19.0 || >=24.0.0",
     "dsh": ">=0.1.7-rc.1"
   },
   "devDependencies": {
